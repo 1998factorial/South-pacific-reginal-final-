@@ -1,37 +1,52 @@
 #include <bits/stdc++.h>
 #include <set>
 #include <vector>
+#define NC 4
 #define MAXN 205
 #define INF 1000000
-#define ID if (true)
+#define ID if (false)
 using namespace std;
 
 int n, k, x, w, h;
 vector<int> edge[MAXN];
 int matrix[MAXN][MAXN];
 int answer[MAXN][MAXN];
-int dist[MAXN];
 
-void bfs(int start) {
+int dist[MAXN];
+int backtrack[MAXN];
+vector<int> shortest_path(int start, int end) {
 	fill(dist, dist+MAXN, INF);
+	fill(backtrack, backtrack+MAXN, 0);
 	dist[start] = 0;
+
 	queue<int> q;
 	q.push(start);
 	while (q.size()) {
-		int at = q.top();
+		int at = q.front();
 		q.pop();
+		if (at == end) {
+			vector<int> path;
+			while (at != 0) {
+				path.push_back(at);
+				at = backtrack[at];
+			}
+			reverse(path.begin(), path.end());
+			return path;
+		}
 		for (int next : edge[at]) {
 			if (dist[next] == INF) {
+				backtrack[next] = at;
 				dist[next] = dist[at] + 1;
 				q.push(next);
 			}
 		}
 	}
+	return {};
 }
 
-unordered_set<int> corners;
-unordered_set<int> sides;
-unordered_set<int> centers;
+vector<int> corners;
+vector<int> sides;
+vector<int> centers;
 
 void fail() {
 	cout << -1 << endl;
@@ -106,13 +121,13 @@ bool solve() {
 	for (int i = 1; i <= n; i++) {
 		int size = edge[i].size();
 		if (size <= 1) return false;
-		if (size == 2) corners.insert(i);
-		if (size == 3) sides.insert(i);
-		if (size == 4) centers.insert(i);
+		if (size == 2) corners.push_back(i);
+		if (size == 3) sides.push_back(i);
+		if (size == 4) centers.push_back(i);
 		if (size >= 5) return false;
 	}
 
-	if (corners.size() != 4) return false;
+	if (corners.size() != NC) return false;
 	if (sides.size() % 2 != 0) return false;
 	int hf = sides.size() / 2;
 
@@ -129,49 +144,53 @@ bool solve() {
 	int d = b*b-4*a*c;
 	if (d < 0) return false;
 
-	w = (-b+((int) round(sqrt(d))))/(2*a);
+	w = (-b-((int) round(sqrt(d))))/(2*a);
 	h = hf - w;
+	if (w < 0) return false;
+	if (h < 0) return false;
 	if (w + h != hf) return false;
 	if (w * h != centers.size()) return false;
 	w += 2;
 	h += 2;
 
-	answer[0][0] = *corners.begin();
-	bfs(answer[0][0]);
+	vector<int> paths[NC];
+	for (int i = 1; i < NC; i++) {
+		paths[i] = shortest_path(corners[0], corners[i]);
+	}
+
+	vector<int> indices{0,1,2,3};
+	sort(indices.begin(), indices.end(), [&](int a, int b) {
+		return paths[a].size() < paths[b].size();
+	});
+
+	answer[0][0] = corners[indices[0]];
+	answer[0][w-1] = corners[indices[1]];
+	answer[h-1][0] = corners[indices[2]];
+	answer[h-1][w-1] = corners[indices[3]];
+
+	if (shortest_path(answer[0][0], answer[0][w-1]).size() != w) return false;
+	if (shortest_path(answer[0][0], answer[h-1][0]).size() != h) return false;
+	if (shortest_path(answer[h-1][w-1], answer[0][w-1]).size() != h) return false;
+	if (shortest_path(answer[h-1][w-1], answer[h-1][0]).size() != w) return false;
 
 	ID cout << "decided first corner to be " << answer[0][0] << endl;
-	if (w == 2 && h == 2) {
-		answer[0][1] = edge[answer[0][0]][0];
-		if (edge[answer[0][1]].size() != 2) return false;
-	} else if (w == 2 && h != 2) {
-		answer[0][1] = find_unique(2, 0, 0);
-	} else {
-		answer[0][1] = edge[answer[0][0]][0];
-		if (edge[answer[0][1]].size() != 3) return false;
-	}
+	ID cout << "decided second corner to be " << answer[0][w-1] << endl;
+	ID cout << "decided third corner to be " << answer[h-1][0] << endl;
+	ID cout << "decided fourth corner to be " << answer[h-1][w-1] << endl;
 
-	ID cout << "decided second corner to be " << answer[0][1] << endl;
-	for (int c = 2; c < w; c++) {
-		cout << c << " " << (w-1) << endl;
-		if (c == w-1) {
-			cout << "reached end" << endl;
-			answer[0][c] = find_unique(2, 0, c-1);
-		} else {
-			answer[0][c] = find_unique(3, 0, c-1);
-		}
-	}
-	ID cout << "first row complete" << endl;
-	for (int r = 1; r < h; r++) {
-		for (int c = 0; c < w; c++) {
-			bool re = r == h-1;
-			bool ce = c == 0 || c == w-1;
-			if (re && ce) {
-				answer[r][c] = find_unique(2, r-1, c);
-			} else if (re || ce) {
-				answer[r][c] = find_unique(3, r-1, c);
-			} else {
-				answer[r][c] = find_unique(4, r-1, c);
-			}
+	vector<int> p1 = shortest_path(answer[0][0], answer[0][w-1]);
+	vector<int> p2 = shortest_path(answer[0][0], answer[h-1][0]);
+	vector<int> p3 = shortest_path(answer[0][w-1], answer[h-1][w-1]);
+	vector<int> p4 = shortest_path(answer[h-1][0], answer[h-1][w-1]);
+
+	for (int i = 1; i < w-1; i++) answer[0][i] = p1[i];
+	for (int i = 1; i < h-1; i++) answer[i][0] = p2[i];
+	for (int i = 1; i < h-1; i++) answer[i][w-1] = p3[i];
+	for (int i = 1; i < w-1; i++) answer[h-1][i] = p4[i];
+
+	for (int r = 1; r < h-1; r++) {
+		for (int c = 1; c < w-1; c++) {
+			answer[r][c] = find_unique(4, r-1, c);
 		}
 	}
 
