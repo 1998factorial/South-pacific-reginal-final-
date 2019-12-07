@@ -83,7 +83,6 @@ int main() {
     ll i = get<2>(p);
     ll lo = l;
     ll hi = r;
-    // cout << "query " << l << " " << r << endl;
     ll best = -1;
     while (hi >= lo) {
       ll mid = (hi+lo) / 2;
@@ -95,7 +94,6 @@ int main() {
       }
     }
     update(root, best);
-    // cout << "query " << l << " " << r << " " << best << " " << query(root, l, r) << endl;
     answer[i] = best;
   }
 
