@@ -1,186 +1,220 @@
-#include <iostream>
+#include <bits/stdc++.h>
+#include <set>
 #include <vector>
-#include <algorithm>
+#define NC 4
 #define MAXN 205
+#define INF 1000000
 #define ID if (false)
 using namespace std;
 
-int n, k;
-int grid[MAXN][MAXN];
+int n, k, x, w, h;
+vector<int> edge[MAXN];
 int matrix[MAXN][MAXN];
-vector<int> e[MAXN];
+int answer[MAXN][MAXN];
+
+int dist[MAXN];
+int backtrack[MAXN];
+vector<int> shortest_path(int start, int end) {
+	fill(dist, dist+MAXN, INF);
+	fill(backtrack, backtrack+MAXN, 0);
+	dist[start] = 0;
+
+	queue<int> q;
+	q.push(start);
+	while (q.size()) {
+		int at = q.front();
+		q.pop();
+		if (at == end) {
+			vector<int> path;
+			while (at != 0) {
+				path.push_back(at);
+				at = backtrack[at];
+			}
+			reverse(path.begin(), path.end());
+			return path;
+		}
+		for (int next : edge[at]) {
+			if (dist[next] == INF) {
+				backtrack[next] = at;
+				dist[next] = dist[at] + 1;
+				q.push(next);
+			}
+		}
+	}
+	return {};
+}
+
 vector<int> corners;
-int width, height;
+vector<int> sides;
+vector<int> centers;
 
-bool is_corner(int at) {
-  return e[at].size() == 2;
+void fail() {
+	cout << -1 << endl;
+	exit(EXIT_SUCCESS);
 }
 
-bool is_edge(int at) {
-  return e[at].size() == 3;
+void add_if(unordered_set<int>& ignore, int r, int c) {
+	if (r < 0 || r >= h || c < 0 || c >= w || answer[r][c] == 0) return;
+	ignore.insert(answer[r][c]);
 }
 
-bool is_body(int at) {
-  return e[at].size() == 4;
+void check_neighbours(int r, int c) {
+	int at = answer[r][c];
+	unordered_set<int> grid_neighbours;
+	add_if(grid_neighbours, r+1, c);
+	add_if(grid_neighbours, r-1, c);
+	add_if(grid_neighbours, r, c+1);
+	add_if(grid_neighbours, r, c-1);
+
+	unordered_set<int> original_neighbours;
+	for (int next : edge[at]) original_neighbours.insert(next);
+	if (grid_neighbours != original_neighbours) fail();
 }
 
-// adds grid[r][c] only if it's inside the bounds
-void add_if(vector<int>& out, int r, int c) {
-  if (r < 0 || r >= height || c < 0 || c >= width) return;
-  out.push_back(grid[r][c]);
+int find_unique(int size, int r, int c) {
+	int next_to = answer[r][c];
+	unordered_set<int> ignore;
+	add_if(ignore, r+1, c);
+	add_if(ignore, r-1, c);
+	add_if(ignore, r, c+1);
+	add_if(ignore, r, c-1);
+
+	int found = 0;
+	for (int next : edge[next_to]) {
+		if (edge[next].size() == size && !ignore.count(next)) {
+			if (found) {
+				ID printf("duplicate size %d neighbour of %d, %d\n", size, r, c);
+				fail();
+			}
+			found = next;
+		}
+	}
+	if (found == 0) {
+		ID printf("failed to find size %d neighbour of %d, %d\n", size, r, c);
+		fail();
+	}
+	ID printf("found size %d neighbour of %d, %d = %d\n", size, r, c, found);
+	return found;
 }
 
-// finds the unique element in nexts but not in nots
-int find_not(vector<int>& nexts, vector<int>& nots) {
-  int answer = 0;
-  for (auto next : nexts) {
-    bool ignore = false;
-    for (auto nt : nots) {
-      if (nt == next) {
-        ignore = true;
-      }
-    }
-    if (ignore) continue;
-
-    if (answer) return 0;
-    answer = next;
-  }
-  return answer;
-}
-
-// finds the unique element in nexts but not in nots
-int find_not_4(vector<int>& nexts, vector<int>& nots) {
-  for (auto next : nexts) {
-    bool ignore = false;
-    for (auto nt : nots) {
-      if (nt == next) {
-        ignore = true;
-      }
-    }
-    if (ignore) continue;
-    if (is_body(next)) continue;
-    return next;
-  }
-  return 0;
-}
-
-void print_grid() {
-  ID cout << "printing grid" << endl;
-  cout << height << " " << width << endl;
-  for (int r = 0; r < height; r++) {
-    for (int c = 0; c < width; c++) cout << grid[r][c] << " ";
-    cout << endl;
-  }
-}
-
-// attempts to fill the first row with degree 3s
 bool solve() {
-  if (corners.size() != 4) return false;
+	// construct adjacency list
+	cin >> n;
+	for (int i = 1; i <= n; i++) {
+		cin >> k;
+		while (k--) {
+			cin >> x;
+			if (x == i) return false;
+			edge[i].push_back(x);
+			matrix[i][x] = true;
+		}
+	}
 
-  // corners must be connected to either edge or corner
-  for (int corner : corners) {
-    if (!is_corner(corner)) return false;
-    for (int next : e[corner]) {
-      if (!is_edge(next) && !is_corner(next)) return false;
-    }
-  }
+	// check if connectivity reflexive
+	for (int a = 1; a <= n; a++) {
+		for (int b = 1; b <= n; b++) {
+			if (matrix[a][b] != matrix[b][a]) return false;
+		}
+	}
 
-  // nothing should border itself
-  for (int i = 1; i <= n; i++) {
-    for (int next : e[i]) {
-      if (next == i) return false;
-    }
-  }
+	// categorise and check if size invalid
+	for (int i = 1; i <= n; i++) {
+		int size = edge[i].size();
+		if (size <= 1) return false;
+		if (size == 2) corners.push_back(i);
+		if (size == 3) sides.push_back(i);
+		if (size == 4) centers.push_back(i);
+		if (size >= 5) return false;
+	}
 
-  grid[0][0] = corners[0];
-  grid[0][1] = e[corners[0]][0];
-  int c = 1;
-  if (!is_corner(grid[0][1])) {
+	if (corners.size() != NC) return false;
+	if (sides.size() % 2 != 0) return false;
+	int hf = sides.size() / 2;
 
-  }
-  bool reached_corner = false;
-  for (c = 2; true; ++c) {
-    vector<int> nots;
-    if (c != 1) nots.push_back(grid[0][c-2]);
-    grid[0][c] = find_not_4(e[grid[0][c-1]], nots);
-    if (grid[0][c] == 0) return false;
-    if (is_body(grid[0][c])) return false;
-    if (is_corner(grid[0][c])) {
-      reached_corner = true;
-      break;
-    }
-  }
-  if (!reached_corner) return false;
+	// solve quadratic equation to find w and h
+	// (w+h)*2 = sides
+	// w+h = hf
+	// w*h = centers
+	// w*(hf-w) = centers
+	// w*hf - w*w = centers
+	// w*w - hf*w + centers = 0
+	int a = 1;
+	int b = -hf;
+	int c = centers.size();
+	int d = b*b-4*a*c;
+	if (d < 0) return false;
 
-  width = c+1;
-  if (n % width != 0) return false;
-  height = n / width;
-  ID print_grid();
+	w = (-b-((int) round(sqrt(d))))/(2*a);
+	h = hf - w;
+	if (w < 0) return false;
+	if (h < 0) return false;
+	if (w + h != hf) return false;
+	if (w * h != centers.size()) return false;
+	w += 2;
+	h += 2;
 
-  for (int r = 1; r < height; r++) {
-    // determine each grid cell based on the cell above it
-    for (int c = 0; c < width; c++) {
-      vector<int> nots;
-      add_if(nots, r-1, c-1);
-      add_if(nots, r-1, c+1);
-      add_if(nots, r-2, c);
-      grid[r][c] = find_not(e[grid[r-1][c]], nots);
-      if (!grid[r][c]) return false;
-    }
-  }
+	vector<int> paths[NC];
+	for (int i = 1; i < NC; i++) {
+		paths[i] = shortest_path(corners[0], corners[i]);
+	}
 
-  int count[MAXN];
-  fill(count, count+MAXN, 0);
-  for (int r = 0; r < height; r++) {
-    for (int c = 0; c < width; c++) {
-      count[grid[r][c]] += 1;
-      bool redge = r == 0 || r == height-1;
-      bool cedge = c == 0 || c == width-1;
-      if (redge && cedge) {
-        if (!is_corner(grid[r][c])) return false;
-      } else if (redge || cedge) {
-        if (!is_edge(grid[r][c])) return false;
-      } else {
-        if (!is_body(grid[r][c])) return false;
-      }
+	vector<int> indices{0,1,2,3};
+	sort(indices.begin(), indices.end(), [&](int a, int b) {
+		return paths[a].size() < paths[b].size();
+	});
 
-      vector<int> next;
-      add_if(next, r+1, c);
-      add_if(next, r-1, c);
-      add_if(next, r, c+1);
-      add_if(next, r, c-1);
-      sort(next.begin(), next.end());
-      sort(e[grid[r][c]].begin(), e[grid[r][c]].end());
-      if (next != e[grid[r][c]]) return false;
-    }
-  }
+	answer[0][0] = corners[indices[0]];
+	answer[0][w-1] = corners[indices[1]];
+	answer[h-1][0] = corners[indices[2]];
+	answer[h-1][w-1] = corners[indices[3]];
 
-  for (int i = 1; i <= n; i++) {
-    if (count[i] != 1) return false;
-  }
+	if (shortest_path(answer[0][0], answer[0][w-1]).size() != w) return false;
+	if (shortest_path(answer[0][0], answer[h-1][0]).size() != h) return false;
+	if (shortest_path(answer[h-1][w-1], answer[0][w-1]).size() != h) return false;
+	if (shortest_path(answer[h-1][w-1], answer[h-1][0]).size() != w) return false;
 
-  ID print_grid();
-  return true;
+	ID cout << "decided first corner to be " << answer[0][0] << endl;
+	ID cout << "decided second corner to be " << answer[0][w-1] << endl;
+	ID cout << "decided third corner to be " << answer[h-1][0] << endl;
+	ID cout << "decided fourth corner to be " << answer[h-1][w-1] << endl;
+
+	vector<int> p1 = shortest_path(answer[0][0], answer[0][w-1]);
+	vector<int> p2 = shortest_path(answer[0][0], answer[h-1][0]);
+	vector<int> p3 = shortest_path(answer[0][w-1], answer[h-1][w-1]);
+	vector<int> p4 = shortest_path(answer[h-1][0], answer[h-1][w-1]);
+
+	for (int i = 1; i < w-1; i++) answer[0][i] = p1[i];
+	for (int i = 1; i < h-1; i++) answer[i][0] = p2[i];
+	for (int i = 1; i < h-1; i++) answer[i][w-1] = p3[i];
+	for (int i = 1; i < w-1; i++) answer[h-1][i] = p4[i];
+
+	for (int r = 1; r < h-1; r++) {
+		for (int c = 1; c < w-1; c++) {
+			answer[r][c] = find_unique(4, r-1, c);
+		}
+	}
+
+	unordered_set<int> seen;
+	for (int r = 0; r < h; r++) {
+		for (int c = 0; c < w; c++) {
+			check_neighbours(r, c);
+			if (seen.count(answer[r][c])) return false;
+			seen.insert(answer[r][c]);
+		}
+	}
+
+	return true;
 }
 
 int main() {
-  cin >> n;
-  for (int i = 1; i <= n; ++i) {
-    cin >> k;
-    for (int j = 0; j < k; ++j) {
-      int x;
-      cin >> x;
-      matrix[i][x] = true;
-      matrix[x][i] = true;
-      e[i].push_back(x);
-    }
-  }
-
-  // find the four corners
-  for (int i = 1; i <= n; ++i) {
-    if (e[i].size() == 2) corners.push_back(i);
-  }
-
-  if (!solve()) cout << -1 << endl;
-  else print_grid();
+	if (!solve()) cout << -1 << endl;
+	else {
+		cout << h << " " << w << endl;
+		for (int r = 0; r < h; r++) {
+			for (int c = 0; c < w; c++) {
+				cout << answer[r][c] << " ";
+			}
+			cout << endl;
+		}
+	}
 }
